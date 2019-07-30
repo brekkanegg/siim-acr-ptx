@@ -52,13 +52,16 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
         tot_val_info_df = pd.DataFrame(tot_val_info_df,
                                        columns=['fp',
                                                 'dice', '2TP', 'TP_FP',
-
                                                 ])
 
         tot_val_info_df.to_csv(save_dir + '/tot_val_info_df_{}'.format(epoch + 1), index=False)
 
-        avg_val_dice = np.mean(tot_val_info_df['dice'])
+        avg_val_dice = np.sum(tot_val_info_df['2TP']) / np.sum(tot_val_info_df['TP_FP'])
         print('avg val dice: {:.4f}'.format(avg_val_dice))
+
+
+        avg_val_kaggle_dice = np.mean(tot_val_info_df['dice'])
+        print('avg val kaggle dice: {:.4f}'.format(avg_val_kaggle_dice))
 
         val_acc = np.sum(np.array(tot_val_lbl) == np.array(tot_val_pred)) / len(tot_val_lbl)
         print('avg val acc: {:.4f}'.format(val_acc))
@@ -75,11 +78,12 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
             torch.save(model.state_dict(), model_name)
 
             that_dice = avg_val_dice
+            that_k_dice = avg_val_kaggle_dice
             that_epoch = epoch + 1
             that_acc = val_acc
 
-        print('Best Metric {:.4f}, Dice {:.4f} Acc {:.4f} at epoch {}'.
-              format(best_metric, that_dice, that_acc, that_epoch))
+        print('Best Metric {:.4f}, Dice {:.4f} KDice {:.4f}, Acc {:.4f} at epoch {}'.
+              format(best_metric, that_dice, that_k_dice, that_acc, that_epoch))
 
         print('================')
 

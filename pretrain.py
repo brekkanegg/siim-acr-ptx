@@ -111,24 +111,27 @@ for epoch in range(params.resume_epoch, params.max_epoch):
 
     print('Validation')
     model.eval()
-    tot_vimgs = []
-    tot_voutputs = []
-    for vi, vimg in enumerate(val_loader):
-        vimg = vimg.permute(0, 3, 1, 2)  # NXY1 -> N1XY
-        vimg = vimg.to(device, dtype=torch.float)
+    with torch.no_grad():
+        tot_vimgs = []
+        tot_voutputs = []
+        for vi, vimg in enumerate(val_loader):
+            vimg = vimg.permute(0, 3, 1, 2)  # NXY1 -> N1XY
+            vimg = vimg.to(device, dtype=torch.float)
 
-        voutputs, _ = model(vimg)
+            voutput, _ = model(vimg)
+            tot_vimgs.append(vimg)
+            tot_voutputs.append(voutput)
 
-    summary_fig(it, vimg, voutputs, writer=writer, type='val')
+        summary_fig(it, vimg, voutput, writer=writer, type='val')
 
-    tot_vimgs = torch.cat(img, dim=0)
-    tot_voutputs = torch.cat(voutputs, dim=0)
+        tot_vimgs = torch.cat(tot_vimgs, dim=0)
+        tot_voutputs = torch.cat(tot_voutputs, dim=0)
 
-    vl2_loss = nn.MSELoss()(tot_voutputs, tot_vimgs)
-    print('{:.4f}'.format(vl2_loss.item()))
+        vl2_loss = nn.MSELoss()(tot_voutputs, tot_vimgs)
+        print('val l2 loss: {:.4f}'.format(vl2_loss.item()))
 
-    model_name = os.path.join(save_dir, 'epoch_' + repr(epoch + 1) + '.pth.tar')
-    torch.save(model.state_dict(), model_name)
+        model_name = os.path.join(save_dir, 'epoch_' + repr(epoch + 1) + '.pth.tar')
+        torch.save(model.state_dict(), model_name)
 
 
 

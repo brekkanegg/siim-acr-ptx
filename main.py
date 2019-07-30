@@ -118,8 +118,7 @@ else:
     ######################################################
     # Train the model
 
-    if params.use == 'bal':
-        btrainer.trainer(model, optimizer, scheduler, train_loader, val_loader, params, save_dir, device, writer)
-    else:
-        trainer.trainer(model, optimizer, scheduler, train_loader, val_loader, params, save_dir, device, writer)
+
+    trainer.trainer(model, optimizer, scheduler, train_loader, val_loader, params, save_dir, device, writer,
+                         use=params.use)
 

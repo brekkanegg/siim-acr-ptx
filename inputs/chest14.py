@@ -85,20 +85,16 @@ class my_dataset(Dataset):
         mask = np.zeros((1024, 1024), dtype=np.uint8)
 
 
-        # todo - get header data
-
         gray = cv2.resize(gray, (self.image_size, self.image_size), interpolation=cv2.INTER_CUBIC)
-
-        # z-normalization
-        gray = (gray - gray.mean()) / max(0.1, gray.std())
-
-
         mask = cv2.resize(mask, (self.image_size, self.image_size), interpolation=cv2.INTER_CUBIC) / 255
 
         if self.transform is not None:
             gray, _ = self.transform(gray, mask)  # caution: 'L' -> 8bit
         else:
             gray, _ = tff.to_tensor(gray).permute(1, 2, 0), tff.to_tensor(mask).permute(1, 2, 0)
+
+        gray = (gray - torch.mean(gray)) / torch.max(torch.tensor(0.1), torch.std(gray))
+
 
         return gray
 
@@ -113,11 +109,12 @@ class my_dataset(Dataset):
 def get_dataloader(params):
 
     aug = augmentations.torch_augmentations(hflip=(params.hflip, 0.1),
-                                            vflip=(params.vflip, 0.1),
                                             rotate=(params.rotate, 0.4, 4),
                                             scale=(params.scale, 0.4, 0.04),
                                             translate=(params.translate, 0.4, 0.04),
-                                            elastic=(params.elastic, 0.4, 2, 0.04, 0.04)
+                                            contrast=(params.contrast, 0.4, 0.1),
+                                            gamma_contrast=(params.gamma_contrast, 0.4, 0.1),
+                                            gaussian_blur=(params.gaussian_blur, 0.4, 2),
                                             )
     transform = aug.augment
 
