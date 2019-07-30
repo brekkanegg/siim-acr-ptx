@@ -18,7 +18,7 @@ def trainer(model, optimizer, scheduler, train_loader, val_loader, params, save_
     if params.resume_epoch != 0:
         assert it != 0
 
-    past_record = (-1, -1, -1, -1)
+    past_record = (-1, -1, -1, -1, -1)
 
     start_time = time.time()
 

@@ -70,10 +70,11 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
 
         # Logging
 
-        (best_metric, that_dice, that_acc, that_epoch) = past_record
+        (best_metric, that_dice, that_k_dice, that_acc, that_epoch) = past_record
 
-        if avg_val_dice > best_metric:
-            best_metric = avg_val_dice
+        choose_metric = avg_val_kaggle_dice
+        if choose_metric > best_metric:
+            best_metric = choose_metric
             model_name = os.path.join(save_dir, 'epoch_' + repr(epoch + 1) + '.pth.tar')
             torch.save(model.state_dict(), model_name)
 
@@ -99,6 +100,6 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
         training_log.to_csv(os.path.join(save_dir, 'training_log.csv'))
 
 
-        past_record = (best_metric, that_dice, that_acc, that_epoch)
+        past_record = (best_metric, that_dice, that_k_dice, that_acc, that_epoch)
 
         return past_record, avg_val_dice, val_acc

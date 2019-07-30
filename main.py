@@ -69,7 +69,7 @@ elif params.optimizer == 'adam':
                                  weight_decay=params.weight_decay)
 
 scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optimizer,
-                                                                 T_0=10,
+                                                                 T_0=5,
                                                                  T_mult=1)
 
 # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer,
