@@ -125,7 +125,7 @@ class my_dataset(Dataset):
 
         # z-normalization
         # gray = (gray - gray.mean()) / max(0.1, gray.std())
-        gray = (gray - torch.mean(gray)) / torch.max(0.1, torch.std(gray))
+        gray = (gray - torch.mean(gray)) / torch.max(torch.tensor(0.1), torch.std(gray))
 
 
         return gfp, gray, mask, label
@@ -149,8 +149,9 @@ def get_dataloader(params):
                                             rotate=(params.rotate, 0.4, 4),
                                             scale=(params.scale, 0.4, 0.04),
                                             translate=(params.translate, 0.4, 0.04),
-                                            contrast = (params.contrast, 0.2),
-                                            gamma_contrast = (params.gamma_contrast, 0.2),
+                                            contrast=(params.contrast, 0.4, 0.1),
+                                            gamma_contrast=(params.gamma_contrast, 0.4, 0.1),
+                                            gaussian_blur=(params.gaussian_blur, 0.4, 2),
                                             )
     transform = aug.augment
 

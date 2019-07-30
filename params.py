@@ -39,6 +39,8 @@ parser.add_argument('--translate', type=str2bool, default=True)
 parser.add_argument('--elastic', type=str2bool, default=False)
 parser.add_argument('--contrast', type=str2bool, default=True)
 parser.add_argument('--gamma_contrast', type=str2bool, default=True)
+parser.add_argument('--gaussian_blur', '--gau', type=str2bool, default=True)
+
 
 
 # Optimization

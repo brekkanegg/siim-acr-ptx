@@ -119,7 +119,7 @@ def trainer(model, optimizer, scheduler, train_loader, val_loader, params, save_
 
 
 
-def calc_weight(seg, ub=0.9):
+def calc_weight(seg, ub=0.8):
     if np.sum(seg.cpu().numpy()==1) == 0:
         weights = None
     else:

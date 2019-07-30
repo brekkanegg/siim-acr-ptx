@@ -36,9 +36,10 @@ class torch_augmentations():  # apply for each intersection image
                  scale=(True, 0.5, 0.03),
                  translate=(True, 0.5, 0.03),
                  elastic=(False, 0.5, 2, 0.08, 0.08),
+                 contrast=(True, 0.5, 0.1),
+                 gamma_contrast=(True, 0.5, 0.1),
+                 gaussian_blur=(True, 0.5, 2)
 
-                 contrast=(True, 0.5),
-                 gammma_contrast = (True, 0.5)
 
                  ):
 
@@ -48,8 +49,8 @@ class torch_augmentations():  # apply for each intersection image
         self.scale_params = scale
         self.translate_params = translate
         self.contrast_params = contrast
-        self.gamma_contrast_params = gammma_contrast
-
+        self.gamma_contrast_params = gamma_contrast
+        self.gaussian_blur_params = gaussian_blur
         # self.elastic_transform_params = elastic
 
 
@@ -65,6 +66,11 @@ class torch_augmentations():  # apply for each intersection image
         img, seg = self.translate(img, seg, *self.translate_params)
         # img, seg = self.elastic_transform(img, seg, *self.elastic_transform_params)
 
+        img = self.adjust_contrast(img, *self.contrast_params)
+        img = self.adjust_gamma(img, *self.gamma_contrast_params)
+        img = self.gaussian_blur(img, *self.gaussian_blur_params)
+
+
         aimg, aseg = self.pil_2_tensor(img, seg)
 
         return aimg, aseg
@@ -72,7 +78,7 @@ class torch_augmentations():  # apply for each intersection image
 
     def to_pil(self, img, seg):
 
-        pil_img = tff.to_pil_image(img.astype('float32'), 'F')
+        pil_img = tff.to_pil_image(img, 'L')
         pil_seg = tff.to_pil_image(seg.astype('float32'), 'F')
 
 
@@ -161,25 +167,33 @@ class torch_augmentations():  # apply for each intersection image
         return img, seg
 
 
-    def adjust_contrast(self, img, do, prob, contrast_factor=2):
+    def adjust_contrast(self, img, do, prob, cf):
         if do:
             if random.random() < prob:
-                cf = random.uniform(contrast_factor, contrast_factor)  # -7,7
-                img = tff.adjust_contrast(img, contrast_factor=cf)
+                c = random.uniform(1-cf, 1+cf)  # -7,7
+                img = tff.adjust_contrast(img, contrast_factor=c)
 
         return img
 
 
-    def adjust_gamma(self, img, do, prob, gamma=2):
+
+    def adjust_gamma(self, img, do, prob, g):
         if do:
             if random.random() < prob:
-                gm = random.uniform(0, gamma)  # -7,7
+                gm = random.uniform(1-g, 1+g)  # -7,7
                 img = tff.adjust_gamma(img, gamma=gm)
 
         return img
 
-# todo: contrast
-# gaussian blur
+
+
+    def gaussian_blur(self, img, do, prob, radius):
+        if do:
+            if random.random() < prob:
+                r = random.uniform(0, radius)
+                img = img.filter(PIL.ImageFilter.GaussianBlur(r))
+
+        return img
 
 
 
