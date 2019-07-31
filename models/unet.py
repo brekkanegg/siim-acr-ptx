@@ -115,19 +115,22 @@ class VanilaUNet(nn.Module):
         return x
 
 
+
+
+
 class UNet(nn.Module): # 2d U-Net + dilation + spatial dropout
-    def __init__(self, n_classes, filters=32, in_norm=False):
+    def __init__(self, n_classes, filters=32, pretrained=True):
         super(UNet, self).__init__()
 
-        self.inc = double_conv(1, filters, filters*2, stride=1, dilation=1, in_norm=in_norm)
-        self.down1 = double_conv(filters*2, filters*2, filters*4, stride=2, dilation=1, in_norm=in_norm)
-        self.down2 = double_conv(filters*4, filters*4, filters*8, stride=2, dilation=2, in_norm=in_norm)
-        self.down3 = double_conv(filters*8, filters*8, filters*16, stride=2, dilation=2, in_norm=in_norm)
+        self.inc = double_conv(1, filters, filters*2, stride=1, dilation=1)
+        self.down1 = double_conv(filters*2, filters*2, filters*4, stride=2, dilation=1)
+        self.down2 = double_conv(filters*4, filters*4, filters*8, stride=2, dilation=2)
+        self.down3 = double_conv(filters*8, filters*8, filters*16, stride=2, dilation=2)
 
 
-        self.up1 = up(filters*24, filters*8, filters*8, stride=2, drop_ratio=0.2, in_norm=in_norm)
-        self.up2 = up(filters*12, filters*4, filters*4, stride=2, drop_ratio=0.2, in_norm=in_norm)
-        self.up3 = up(filters*6, filters*2, filters*2, stride=2, drop_ratio=0.0, in_norm=in_norm)
+        self.up1 = up(filters*24, filters*8, filters*8, stride=2, drop_ratio=0.2)
+        self.up2 = up(filters*12, filters*4, filters*4, stride=2, drop_ratio=0.2)
+        self.up3 = up(filters*6, filters*2, filters*2, stride=2, drop_ratio=0.0)
 
         self.outc = nn.Conv2d(filters*2, n_classes, 3, stride=1, padding=1)
 
@@ -145,7 +148,12 @@ class UNet(nn.Module): # 2d U-Net + dilation + spatial dropout
 
         self._init_weight()
 
-
+        if pretrained:
+            pretrained_dict = torch.load('./ckpt/pretrain/chest14/epoch_4.pth.tar')
+            self._load_weight(self.inc, pretrained_dict)
+            self._load_weight(self.down1, pretrained_dict)
+            self._load_weight(self.down2, pretrained_dict)
+            self._load_weight(self.down3, pretrained_dict)
 
 
     def forward(self, x):
@@ -166,6 +174,14 @@ class UNet(nn.Module): # 2d U-Net + dilation + spatial dropout
         # x = self.up4(x, x1)
         x = self.outc(x)
         return x, c
+
+
+    def _load_weight(self, model, pretrained_dict):
+        model_dict = model.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        model_dict.update(pretrained_dict)
+        model.load_state_dict(model_dict)
+
 
 
     def _init_weight(self):
