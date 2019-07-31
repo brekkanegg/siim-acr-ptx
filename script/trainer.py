@@ -13,7 +13,7 @@ from script import validator
 
 
 def trainer(model, optimizer, scheduler, train_loader, val_loader, params, save_dir, device, writer,
-            it=0, freeze_bn=False, use='bal'):
+            it=0, freeze_bn=False, use='bal', th=0.9):
 
     if params.resume_epoch != 0:
         assert it != 0
@@ -60,7 +60,7 @@ def trainer(model, optimizer, scheduler, train_loader, val_loader, params, save_
 
         # fixme
         past_record, avg_val_dice, val_acc = \
-            validator.validator(model, it, epoch, val_loader, save_dir, device, writer, past_record)
+            validator.validator(model, it, epoch, val_loader, save_dir, device, writer, past_record, th)
 
         writer.add_scalars('dice', {'val dice': avg_val_dice}, it)
         writer.add_scalars('accuracy', {'val accuracy': val_acc}, it)

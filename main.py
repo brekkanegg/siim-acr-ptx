@@ -81,7 +81,7 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optim
 ########################################################################################################################
 
 # Inference
-if not params.is_train:
+if (not params.is_train) or params.submit:
 
     if not params.inference_epoch:
         history = pd.read_csv(save_dir + '/training_log.csv')
@@ -100,7 +100,7 @@ if not params.is_train:
     state_dict = torch.load(best_model_dir)
     model.load_state_dict(state_dict)
 
-    tester.tester(model, val_loader, save_dir, device, writer, best_epoch)
+    tester.tester(model, val_loader, save_dir, device, writer, best_epoch, submit=params.submit, th=params.threshold)
 
 
 
@@ -110,15 +110,24 @@ if not params.is_train:
 else:
 
     if params.resume_epoch:
-        pass
+        print('\nRe-Start Training!\n')
+        it = len(train_loader) * params.resume_epoch
+
+        best_model_dir = os.path.join(save_dir, 'epoch_{}.pth.tar'.format(params.resume_epoch))
+        print('\nFrom Model Dir:', best_model_dir, '\n')
+
+        state_dict = torch.load(best_model_dir)
+        model.load_state_dict(state_dict)
+
 
     else:
         print('\nStart Training!\n')
+        it = 0
 
     ######################################################
     # Train the model
 
 
     trainer.trainer(model, optimizer, scheduler, train_loader, val_loader, params, save_dir, device, writer,
-                         use=params.use)
+                    use=params.use, it=it, th=params.threshold)
 

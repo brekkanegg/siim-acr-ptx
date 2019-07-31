@@ -34,14 +34,14 @@ def filter_none_collate(batch):
 
 class my_dataset(Dataset):
     def __init__(self, valset=0, num_classes=2, image_size=1024, transform=None,
-                 debug_mode=False, is_train=True, use='all'):
+                 debug_mode=False, mode='train', use='all'):
 
 
         self.valset = valset
         self.num_classes = num_classes
         self.image_size = image_size
 
-        self.is_train = is_train
+        self.mode = mode
         self.meta_csv = pd.read_csv(DATA_DIR + '/train-meta.csv')
         self.debug_mode = debug_mode
 
@@ -52,18 +52,27 @@ class my_dataset(Dataset):
         self.no_pneumo_dirs = sorted(list(np.load('./data/no_pneumo_dirs.npy')))  # only images with pneumothorax
         self.no_pneumo_dirs = [i.replace('./data', DATA_DIR) for i in self.no_pneumo_dirs]
 
+        self.test_dirs = glob.glob(DATA_DIR + '/gray-images-test/*.png')
+
+
         self.train_img_dirs, self.val_img_dirs = self.get_train_val_image_dirs(valset)
-        if is_train:
+        if mode == 'train':
             print('\nTrain')
             self.img_dirs = self.train_img_dirs
-        else:
+        elif mode == 'val':
             print('\nValidation')
             self.img_dirs = self.val_img_dirs
+        elif mode == 'test':
+            print('\nTest - Submission')
+            self.img_dirs = self.test_dirs
+
 
         if self.debug_mode:
             self.img_dirs = self.img_dirs[:100]
 
-        self.print_pneumo_ratios()
+
+        if mode != 'test':
+            self.print_pneumo_ratios()
 
 
         print('Imgs Num: ', len(self.img_dirs))
@@ -162,7 +171,7 @@ def get_dataloader(params):
                                                             image_size=params.image_size,
                                                             transform=transform,
                                                             debug_mode=params.debug_mode,
-                                                            is_train=True,
+                                                            mode='train',
                                                             use='normal',
 
                                                             ),
@@ -176,7 +185,7 @@ def get_dataloader(params):
                                                               image_size=params.image_size,
                                                               transform=transform,
                                                               debug_mode=params.debug_mode,
-                                                              is_train=True,
+                                                              mode='train',
                                                               use='abnormal',
 
                                                               ),
@@ -193,7 +202,7 @@ def get_dataloader(params):
                                                      image_size=params.image_size,
                                                      transform=transform,
                                                      debug_mode=params.debug_mode,
-                                                     is_train=True,
+                                                     mode='train',
                                                      use=params.use
                                                      ),
                                   batch_size=params.batch_size,
@@ -201,18 +210,34 @@ def get_dataloader(params):
                                   num_workers=params.num_workers,
                                   collate_fn=filter_none_collate)
 
-    val_loader = DataLoader(dataset=my_dataset(valset= params.valset,
-                                               num_classes=params.num_classes,
-                                               image_size=params.image_size,
-                                               transform=None,
-                                               debug_mode=params.debug_mode,
-                                               is_train=False,
-                                               use='all'
-                                               ),
-                            batch_size=params.batch_size,
-                            shuffle=(params.is_train == False),
-                            num_workers=params.num_workers,
-                            collate_fn=filter_none_collate)
+
+    if params.submit:
+        val_loader = DataLoader(dataset=my_dataset(valset=params.valset,
+                                                   num_classes=params.num_classes,
+                                                   image_size=params.image_size,
+                                                   transform=None,
+                                                   debug_mode=False,
+                                                   mode='test',
+                                                   use='all'
+                                                   ),
+                                batch_size=1,
+                                shuffle=False,
+                                num_workers=0,
+                                collate_fn=filter_none_collate)
+
+    else:
+        val_loader = DataLoader(dataset=my_dataset(valset=params.valset,
+                                                   num_classes=params.num_classes,
+                                                   image_size=params.image_size,
+                                                   transform=None,
+                                                   debug_mode=params.debug_mode,
+                                                   mode='val',
+                                                   use='all'
+                                                   ),
+                                batch_size=params.batch_size,
+                                shuffle=False,
+                                num_workers=params.num_workers,
+                                collate_fn=filter_none_collate)
 
 
     return train_loader, val_loader

@@ -90,7 +90,9 @@ parser.add_argument('--up', type=str, default='bi')
 
 
 # Options
-parser.add_argument('--seed', '--s', type=int, default=None)  #
+parser.add_argument('--seed', '--s', type=str, default=None)  #
+parser.add_argument('--submit', '--sub', type=str2bool, default=False)  #
+parser.add_argument('--threshold', '--th', type=float, default=0.8)  #
 
 
 

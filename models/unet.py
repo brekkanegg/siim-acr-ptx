@@ -193,6 +193,15 @@ class UNetRes50(nn.Module):
 
         self.outc = nn.Conv2d(32, n_classes, 3, stride=1, padding=1)
 
+        # self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
+        #                                 nn.Conv2d(2048, 64, 1, stride=1),
+        #                                 nn.BatchNorm2d(64),
+        #                                 nn.ELU(inplace=True),
+        #                                 nn.Dropout2d(p=0.2),
+        #                                 nn.Conv2d(64, 2, 1, stride=1),
+        #                                 )
+
+
         self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
                                         nn.Conv2d(2048, 256, 1, stride=1),
                                         nn.BatchNorm2d(256),

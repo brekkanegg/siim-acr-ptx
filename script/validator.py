@@ -13,16 +13,15 @@ from utils import tools, visualize, losses
 
 
 
-def validator(model, it, epoch, val_loader, save_dir, device, writer, past_record):
+def validator(model, it, epoch, val_loader, save_dir, device, writer, past_record, th=0.9):
 
 
 
     print('===Validation===')
     print(save_dir)
 
-    tot_val_lbl = []
+
     tot_val_info_df = []
-    tot_val_pred = []
 
     model.eval()  # eval mode (batchnorm uses moving mean/variance instead of mini-batch mean/variance)
     with torch.no_grad():
@@ -32,14 +31,12 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
             val_seg = torch.squeeze(val_seg, -1)
             val_img = val_img.to(device, dtype=torch.float)
             val_seg = val_seg.to(device, dtype=torch.long)
-
             val_lbl = val_lbl.to(device, dtype=torch.long)
-            tot_val_lbl.extend(val_lbl.cpu().numpy())
 
-            val_outputs, val_preds = model(val_img)
-            tot_val_pred.extend(torch.argmax(val_preds, dim=1).cpu().numpy())
+            val_outputs, val_lbl_outputs = model(val_img)
 
-            val_dice_info = tools.calc_dice_info(val_fp, val_outputs, val_preds, val_seg, aux=False)
+            val_dice_info = tools.calc_dice_info(val_fp, val_lbl, val_lbl_outputs, val_seg, val_outputs,
+                                                 follow_aux=False, th=th)
             tot_val_info_df.extend(val_dice_info)
 
 
@@ -49,21 +46,15 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
 
         # Vessel, Lumen Dice
 
-        tot_val_info_df = pd.DataFrame(tot_val_info_df,
-                                       columns=['fp',
-                                                'dice', '2TP', 'TP_FP',
-                                                ])
-
+        tot_val_info_df = pd.DataFrame(tot_val_info_df, columns=['fp', 'lbl', 'pred_lbl', 'dice', '2TP', 'TP_FP'])
         tot_val_info_df.to_csv(save_dir + '/tot_val_info_df_{}'.format(epoch + 1), index=False)
+
 
         avg_val_dice = np.sum(tot_val_info_df['2TP']) / np.sum(tot_val_info_df['TP_FP'])
         print('avg val dice: {:.4f}'.format(avg_val_dice))
-
-
         avg_val_kaggle_dice = np.mean(tot_val_info_df['dice'])
         print('avg val kaggle dice: {:.4f}'.format(avg_val_kaggle_dice))
-
-        val_acc = np.sum(np.array(tot_val_lbl) == np.array(tot_val_pred)) / len(tot_val_lbl)
+        val_acc = np.sum(tot_val_info_df['pred_lbl'] == tot_val_info_df['lbl']) / len(tot_val_info_df)
         print('avg val acc: {:.4f}'.format(val_acc))
 
         # print('val time: {:.4f}'.format(time.time() - vt1))
@@ -72,7 +63,7 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
 
         (best_metric, that_dice, that_k_dice, that_acc, that_epoch) = past_record
 
-        choose_metric = avg_val_kaggle_dice
+        choose_metric = avg_val_dice
         if choose_metric > best_metric:
             best_metric = choose_metric
             model_name = os.path.join(save_dir, 'epoch_' + repr(epoch + 1) + '.pth.tar')

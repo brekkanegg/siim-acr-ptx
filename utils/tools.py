@@ -9,8 +9,9 @@ import torch.nn.functional as F
 from scipy import ndimage
 
 def set_save_dir(params):
-    if not params.is_train:
+    if (~params.is_train) or (params.resume_epoch !=0):
         save_dir = glob.glob('./ckpt/seed-{}*'.format(params.seed))[0]
+        # todo: check params matching
 
     else:
         save_dict = collections.OrderedDict()
@@ -44,36 +45,42 @@ def set_save_dir(params):
     return save_dir
 
 
-def calc_dice_info(pid, logit, lbl_logit, target, eps=1e-7, aux=False):
+def calc_dice_info(pid, lbl, lbl_logit, mask, mask_logit, eps=1e-7, follow_aux=False, th=0.9):
     t1 = time.time()
 
-    batch_size = logit.shape[0]
+    batch_size = mask_logit.shape[0]
 
     infos = []
-
     for bi in range(batch_size):
 
-        bi_logit = logit[bi]
-        pred = (torch.argmax(F.softmax(bi_logit, dim=0), dim=0)).type(torch.float32)
-
-        if aux:
-            bi_lbl_logit = lbl_logit[bi]
-            if torch.argmax(bi_lbl_logit, dim=0) == 0:
-                pred = torch.zeros_like(pred)
-
-        bi_target = target[bi]
-        gt = bi_target.type(logit.type())
-
-        TP2 = 2 * torch.sum(pred * gt).item()
-        TP_FP = (torch.sum(pred) + torch.sum(gt)).item()
-        if (TP2 == 0) and (TP_FP == 0):
-            dice = 1.
+        bi_lbl_logit = lbl_logit[bi]
+        if torch.softmax(bi_lbl_logit, dim=0)[1] > th:
+            bi_pred_lbl = 1
         else:
-            dice = TP2 / (TP_FP+eps)
+            bi_pred_lbl = 0
 
-        infos.append([pid[bi],
-                      dice, TP2, TP_FP,
-                      ])
+
+        bi_mask_logit = mask_logit[bi]
+
+        # pred = (torch.argmax(F.softmax(bi_logit, dim=0), dim=0)).type(torch.float32)
+        bi_pred_mask = (torch.softmax(bi_mask_logit, dim=0)[1, :, :] > th).type(torch.float32)
+
+        if follow_aux:
+            if not bi_pred_lbl:
+                bi_pred_mask = torch.zeros_like(bi_pred_mask)
+
+
+        bi_gt_mask = mask[bi]
+        bi_gt_mask = bi_gt_mask.type(bi_mask_logit.type())
+
+        bi_2TP = 2 * torch.sum(bi_pred_mask * bi_gt_mask).item()
+        bi_TP_FP = (torch.sum(bi_pred_mask) + torch.sum(bi_gt_mask)).item()
+        if (bi_2TP == 0) and (bi_TP_FP == 0):
+            bi_dice = 1.
+        else:
+            bi_dice = bi_2TP / (bi_TP_FP+eps)
+
+        infos.append([pid[bi], lbl[bi], bi_pred_lbl, bi_dice, bi_2TP, bi_TP_FP])
 
 
     return infos
