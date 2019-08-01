@@ -28,18 +28,27 @@ torch.cuda.set_device(0)
 
 
 
-model = getattr(unet, 'UNet')(n_classes=1).to(device)
+model = getattr(unet, 'UNet')(n_classes=1, pretrained=True).to(device)
+
 optimizer = torch.optim.SGD(model.parameters(), #filter(lambda p: p.requires_grad, model.parameters())
                             lr=params.learning_rate,
                             momentum=params.beta1,
                             weight_decay=params.weight_decay)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optimizer,
-                                                                 T_0=10,
+                                                                 T_0=5,
                                                                  T_mult=1)
 train_loader, val_loader = chest14.get_dataloader(params)
 save_dir = './ckpt/pretrain/chest14'
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
+
+
+if params.resume_epoch != 0 :
+    resume_model_dir = os.path.join(save_dir, 'epoch_{}.pth.tar'.format(params.resume_epoch))
+    print('\nresume model dir:', resume_model_dir, '\n')
+    state_dict = torch.load(resume_model_dir)
+    model.load_state_dict(state_dict)
+
 
 
 
@@ -75,7 +84,7 @@ start_time = time.time()
 total_step = len(train_loader)
 display_step = len(train_loader) // params.display_interval# // 10
 
-it = 0
+it = params.resume_epoch*len(train_loader)
 for epoch in range(params.resume_epoch, params.max_epoch):
     scheduler.step(epoch)  # sgdr
 

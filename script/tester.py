@@ -6,6 +6,7 @@ import pandas as pd
 from tqdm import tqdm
 
 import torch
+import cv2
 
 sys.path.append('..')
 
@@ -69,13 +70,13 @@ def tester(model, val_loader, save_dir, device, writer, best_epoch, submit=False
 
                 val_outputs, val_lbl_outputs = model(val_img)
 
-                # fixme: argmax --> threshold
+
                 test_outputs = (torch.softmax(val_outputs, dim=1)[0, 1, :, :] > th).detach().cpu().numpy()
+                test_outputs = cv2.resize(test_outputs, (1024, 1024), interpolation=cv2.INTER_CUBIC)
 
 
 
-                w, h = test_outputs.shape
-                rle = mask2rle(test_outputs*255, w, h)
+                rle = mask2rle(test_outputs*255, 1024, 1024)
                 if len(rle) == 0:
                     rle = -1
 

@@ -58,11 +58,14 @@ class double_conv(nn.Module):
 
 
 class up(nn.Module):
-    def __init__(self, in_ch, out_ch1, out_ch2, stride=2, drop_ratio=0.2, in_norm=False):
+    def __init__(self, in_ch, out_ch, up_in_ch, up_out_ch, stride=2, drop_ratio=0.2, in_norm=False):
         super(up, self).__init__()
 
         self.stride = stride
-        self.conv = double_conv(in_ch, out_ch1, out_ch2, 1, drop_ratio=drop_ratio, in_norm=in_norm)
+        self.transpose_conv = nn.ConvTranspose2d(in_channels=up_in_ch, out_channels=up_out_ch, kernel_size=3,
+                                                 stride=self.stride, padding=1, output_padding=1)
+
+        self.conv = double_conv(in_ch, out_ch, out_ch, 1, drop_ratio=drop_ratio, in_norm=in_norm)
 
 
     def copy_crop(self, x1, x2):
@@ -77,8 +80,9 @@ class up(nn.Module):
 
     def forward(self, x1, x2):
 
-        x1 = F.interpolate(x1, scale_factor=self.stride, mode='bilinear', align_corners=True)
-
+        # x1 = F.interpolate(x1, scale_factor=self.stride, mode='bilinear', align_corners=True)
+        # fixme - check
+        x1 = self.transpose_conv(x1)
         x2 = self.copy_crop(x1, x2)
 
         x = torch.cat([x2, x1], dim=1)
@@ -87,32 +91,32 @@ class up(nn.Module):
 
 
 
-class VanilaUNet(nn.Module):
-    def __init__(self, n_classes):
-        super(VanilaUNet, self).__init__()
-        self.inc = double_conv(1, 64, 64, stride=1)
-        self.down1 = double_conv(64, 128, 128, stride=2)
-        self.down2 = double_conv(128, 256, 256, stride=2)
-        self.down3 = double_conv(256, 512, 512, stride=2)
-        self.down4 = double_conv(512, 512, 512, stride=2)
-        self.up1 = up(1024, 256, 256, stride=2)
-        self.up2 = up(512, 128, 128, stride=2)
-        self.up3 = up(256, 64, 64, stride=2)
-        self.up4 = up(128, 64, 64, stride=2)
-        self.outc = nn.Conv2d(64, n_classes, 3, stride=1, padding=1)
-
-    def forward(self, x):
-        x1 = self.inc(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-        x = self.outc(x)
-        return x
+# class VanilaUNet(nn.Module):
+#     def __init__(self, n_classes):
+#         super(VanilaUNet, self).__init__()
+#         self.inc = double_conv(1, 64, 64, stride=1)
+#         self.down1 = double_conv(64, 128, 128, stride=2)
+#         self.down2 = double_conv(128, 256, 256, stride=2)
+#         self.down3 = double_conv(256, 512, 512, stride=2)
+#         self.down4 = double_conv(512, 512, 512, stride=2)
+#         self.up1 = up(1024, 256, 256, stride=2)
+#         self.up2 = up(512, 128, 128, stride=2)
+#         self.up3 = up(256, 64, 64, stride=2)
+#         self.up4 = up(128, 64, 64, stride=2)
+#         self.outc = nn.Conv2d(64, n_classes, 3, stride=1, padding=1)
+#
+#     def forward(self, x):
+#         x1 = self.inc(x)
+#         x2 = self.down1(x1)
+#         x3 = self.down2(x2)
+#         x4 = self.down3(x3)
+#         x5 = self.down4(x4)
+#         x = self.up1(x5, x4)
+#         x = self.up2(x, x3)
+#         x = self.up3(x, x2)
+#         x = self.up4(x, x1)
+#         x = self.outc(x)
+#         return x
 
 
 
@@ -128,9 +132,9 @@ class UNet(nn.Module): # 2d U-Net + dilation + spatial dropout
         self.down3 = double_conv(filters*8, filters*8, filters*16, stride=2, dilation=2)
 
 
-        self.up1 = up(filters*24, filters*8, filters*8, stride=2, drop_ratio=0.2)
-        self.up2 = up(filters*12, filters*4, filters*4, stride=2, drop_ratio=0.2)
-        self.up3 = up(filters*6, filters*2, filters*2, stride=2, drop_ratio=0.0)
+        self.up1 = up(filters*16, filters*8, filters*16, filters*8, stride=2, drop_ratio=0.2)
+        self.up2 = up(filters*8, filters*4, filters*8, filters*4, stride=2, drop_ratio=0.2)
+        self.up3 = up(filters*4, filters*2, filters*4, filters*2, stride=2, drop_ratio=0.0)
 
         self.outc = nn.Conv2d(filters*2, n_classes, 3, stride=1, padding=1)
 
@@ -149,7 +153,9 @@ class UNet(nn.Module): # 2d U-Net + dilation + spatial dropout
         self._init_weight()
 
         if pretrained:
-            pretrained_dict = torch.load('./ckpt/pretrain/chest14/epoch_4.pth.tar')
+            pretrained_dict_dir = './ckpt/pretrain/chest14/epoch_4.pth.tar'
+            print('using pretrained weight: ', pretrained_dict_dir)
+            pretrained_dict = torch.load(pretrained_dict_dir)
             self._load_weight(self.inc, pretrained_dict)
             self._load_weight(self.down1, pretrained_dict)
             self._load_weight(self.down2, pretrained_dict)
@@ -201,13 +207,19 @@ class UNetRes50(nn.Module):
         self.resnetencoder = resnet.ResNetEncoder(resnet.Bottleneck, [3 ,4, 6, 3], 1)
 
 
-        self.up1 = up(3072, 512, 512, stride=2)
-        self.up2 = up(1024, 256, 256, stride=2)
-        self.up3 = up(512, 64, 64, stride=2)
-        self.up4 = up(128, 64, 64, stride=2)
-        self.up5 = up(65, 32, 32, stride=2)
+        # self.up1 = up(3072, 512, 512, stride=2) # up(3072, 512, 512, stride=2)
+        # self.up2 = up(1024, 256, 256, stride=2)
+        # self.up3 = up(512, 64, 64, stride=2)
+        # self.up4 = up(128, 64, 64, stride=2)
+        # self.up5 = up(65, 32, 32, stride=2)
+        # self.outc = nn.Conv2d(32, n_classes, 3, stride=1, padding=1)
 
-        self.outc = nn.Conv2d(32, n_classes, 3, stride=1, padding=1)
+        self.up1 = up(2048, 1024, 2048, 1024, stride=2) # up(3072, 512, 512, stride=2)
+        self.up2 = up(1024, 512, 1024, 512, stride=2)
+        self.up3 = up(512, 256, 512, 256, stride=2)
+        self.up4 = up(128, 64, 256, 64, stride=2)
+        self.up5 = up(33, 16, 64, 32, stride=2)
+        self.outc = nn.Conv2d(16, n_classes, 3, stride=1, padding=1)
 
         # self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
         #                                 nn.Conv2d(2048, 64, 1, stride=1),

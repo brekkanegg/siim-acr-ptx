@@ -111,8 +111,8 @@ parser.add_argument('--tune', type=str, default='hb')  #
 params = parser.parse_args()
 
 
-if params.resume_epoch:
-    assert params.seed is not None
+# if params.resume_epoch:
+#     assert params.seed is not None
 
 
 if params.seed is None:
