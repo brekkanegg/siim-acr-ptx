@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from scipy import ndimage
 
 def set_save_dir(params):
-    if (not params.is_train) or (params.resume_epoch !=0):
+    if (not params.is_train) or (params.resume_epoch !=0) or (params.submit):
         save_dir = glob.glob('./ckpt/seed-{}*'.format(params.seed))[0]
         # todo: check params matching
 

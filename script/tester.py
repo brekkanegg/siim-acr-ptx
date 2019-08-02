@@ -76,7 +76,7 @@ def tester(model, val_loader, save_dir, device, writer, best_epoch, submit=False
 
 
 
-                rle = mask2rle(test_outputs*255, 1024, 1024)
+                rle = mask2rle(test_outputs.T*255, 1024, 1024)  # Note to do transpose operation
                 if len(rle) == 0:
                     rle = -1
 
@@ -85,4 +85,4 @@ def tester(model, val_loader, save_dir, device, writer, best_epoch, submit=False
                 submission_csv.loc[i, 'EncodedPixels'] = rle
                 i += 1
 
-        submission_csv.to_csv('./submission/{}_th{}_submit.csv'.format(th, save_dir.split('/ckpt/')[1]), index=False)
+        submission_csv.to_csv('./submission/{}_th{}_submit.csv'.format(save_dir.split('/ckpt/')[1], th), index=False)

@@ -58,7 +58,7 @@ parser.add_argument('--loss_type', '--loss', type=str, default='wce')
 parser.add_argument('--dice_weight', '--dw', type=float, default=0.)
 parser.add_argument('--ce_weight', '--cw', type=float, default=1.)
 parser.add_argument('--focal_weight', '--fw', type=float, default=0.)
-parser.add_argument('--class_weight', '--clw', type=float, default=0.1)
+parser.add_argument('--class_weight', '--clw', type=float, default=0.01)
 
 # parser.add_argument('--boundary_weight', '--bw', type=float, default=0.)
 

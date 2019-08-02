@@ -8,7 +8,7 @@ import torch.utils.model_zoo as model_zoo
 
 import math
 
-from models import resnet
+from models import resnet, efficientnet
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -132,8 +132,8 @@ class UNet(nn.Module): # 2d U-Net + dilation + spatial dropout
         self.down3 = double_conv(filters*8, filters*8, filters*16, stride=2, dilation=2)
 
 
-        self.up1 = up(filters*16, filters*8, filters*16, filters*8, stride=2, drop_ratio=0.2)
-        self.up2 = up(filters*8, filters*4, filters*8, filters*4, stride=2, drop_ratio=0.2)
+        self.up1 = up(filters*16, filters*8, filters*16, filters*8, stride=2, drop_ratio=0.1)
+        self.up2 = up(filters*8, filters*4, filters*8, filters*4, stride=2, drop_ratio=0.1)
         self.up3 = up(filters*4, filters*2, filters*4, filters*2, stride=2, drop_ratio=0.0)
 
         self.outc = nn.Conv2d(filters*2, n_classes, 3, stride=1, padding=1)
@@ -142,11 +142,11 @@ class UNet(nn.Module): # 2d U-Net + dilation + spatial dropout
                                         nn.Conv2d(512, 256, 1, stride=1),
                                         nn.BatchNorm2d(256),
                                         nn.ELU(inplace=True),
-                                        nn.Dropout2d(p=0.2),
+                                        nn.Dropout2d(p=0.1),
                                         nn.Conv2d(256, 64, 1, stride=1),
                                         nn.BatchNorm2d(64),
                                         nn.ELU(inplace=True),
-                                        nn.Dropout2d(p=0.2),
+                                        nn.Dropout2d(p=0.1),
                                         nn.Conv2d(64, 2, 1, stride=1),
                                         )
 
@@ -154,7 +154,7 @@ class UNet(nn.Module): # 2d U-Net + dilation + spatial dropout
 
         if pretrained:
             pretrained_dict_dir = './ckpt/pretrain/chest14/epoch_4.pth.tar'
-            print('using pretrained weight: ', pretrained_dict_dir)
+            print('\nUsing pretrained weight: ', pretrained_dict_dir)
             pretrained_dict = torch.load(pretrained_dict_dir)
             self._load_weight(self.inc, pretrained_dict)
             self._load_weight(self.down1, pretrained_dict)
@@ -234,11 +234,11 @@ class UNetRes50(nn.Module):
                                         nn.Conv2d(2048, 256, 1, stride=1),
                                         nn.BatchNorm2d(256),
                                         nn.ELU(inplace=True),
-                                        nn.Dropout2d(p=0.2),
+                                        nn.Dropout2d(p=0.1),
                                         nn.Conv2d(256, 64, 1, stride=1),
                                         nn.BatchNorm2d(64),
                                         nn.ELU(inplace=True),
-                                        nn.Dropout2d(p=0.2),
+                                        nn.Dropout2d(p=0.1),
                                         nn.Conv2d(64, 2, 1, stride=1),
                                         )
 
@@ -289,59 +289,64 @@ class UNetRes50(nn.Module):
 
 
 
-# ## todo: 뭐가 잘 못 되었는지 모르겠다..
-# class UNetRes34(nn.Module):
-#     def __init__(self, n_classes, pretrained=True):
-#         super(UNetRes34, self).__init__()
-#
-#         self.resnetencoder = resnet.ResNetEncoder(resnet.Bottleneck, [3 ,4, 6, 3], 1)
-#
-#
-#         self.up1 = up(3072, 512, 512, stride=2)
-#         self.up2 = up(1024, 256, 256, stride=2)
-#         self.up3 = up(512, 64, 64, stride=2)
-#         self.up4 = up(128, 64, 64, stride=2)
-#         self.up5 = up(65, 32, 32, stride=2)
-#
-#         self.outc = nn.Conv2d(32, n_classes, 3, stride=1, padding=1)
-#
-#         self._init_weight()
-#
-#         # pretrained=True should be after than self._init_weight()
-#         if pretrained:
-#             model_dict = self.resnetencoder.state_dict()
-#             pretrained_dict = model_zoo.load_url(model_urls['resnet34'])
-#             pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-#
-#             in_conv_weight =  pretrained_dict['conv1.weight']
-#             pretrained_dict['conv1.weight'] = torch.cat((torch.mean(in_conv_weight, dim=1).unsqueeze(1), )*1, 1)
-#
-#             # 2. overwrite entries in the existing state dict
-#             model_dict.update(pretrained_dict)
-#             # 3. load the new state dict
-#             self.resnetencoder.load_state_dict(model_dict)
-#
-#
-#     def forward(self, x):
-#         x0 = x
-#         x1, x2, x3, x4, x5 = self.resnetencoder(x)
-#         print(x.shape, x1.shape, x2.shape, x3.shape, x4.shape, x5.shape)
-#
-#         x = self.up1(x5, x4)  # 3072 -> 512
-#         x = self.up2(x, x3)  # 1024 -> 256
-#         x = self.up3(x, x2)  # 512 -> 64
-#         x = self.up4(x, x1)  # 128 -> 64
-#         x = self.up5(x, x0)
-#
-#         x = self.outc(x)
-#
-#         return x
-#
-#
-#     def _init_weight(self):
-#         for m in self.modules():
-#             if isinstance(m, nn.Conv2d):
-#                 torch.nn.init.kaiming_normal_(m.weight)
-#             elif isinstance(m, nn.BatchNorm2d):
-#                 m.weight.data.fill_(1)
-#                 m.bias.data.zero_()
+
+
+class EfficientB4UNet(nn.Module):
+    def __init__(self, n_classes, pretrained=True):
+        super(EfficientB4UNet, self).__init__()
+
+        self.up1 = up(320, 160, 1792, 160, stride=2)
+        self.up2 = up(112, 56, 160, 56, stride=2)
+        self.up3 = up(64, 32, 56, 32, stride=2)
+        self.up4 = up(48, 24, 32, 24, stride=2)
+        self.up5 = up(17, 16, 24, 16, stride=2)
+        self.outc = nn.Conv2d(16, n_classes, 3, stride=1, padding=1)
+
+
+        self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
+                                        nn.Conv2d(1792, 256, 1, stride=1),
+                                        nn.BatchNorm2d(256),
+                                        nn.ELU(inplace=True),
+                                        nn.Dropout2d(p=0.1),
+                                        nn.Conv2d(256, 64, 1, stride=1),
+                                        nn.BatchNorm2d(64),
+                                        nn.ELU(inplace=True),
+                                        nn.Dropout2d(p=0.1),
+                                        nn.Conv2d(64, 2, 1, stride=1),
+                                        )
+
+        self._init_weight()
+
+        if pretrained:
+            self.efficientnetB4_encoder = efficientnet.EfficientNet.from_pretrained('efficientnet-b4', n_classes)
+            # self.efficientnet_encoder['']
+
+
+
+    def forward(self, x):
+        x0 = x
+        ef = self.efficientnetB4_encoder(x)
+        x1, x2, x3, x4, x5 = ef[2], ef[6], ef[10], ef[22], ef[33]
+        # [4, 24, 256, 256],  [4, 32, 128, 128], [4, 56, 64, 64] [4, 160, 32, 32], [4, 1792, 16, 16]
+
+        c = self.classifier(x5)
+        c = torch.squeeze(torch.squeeze(c, -1), -1)
+
+        x = self.up1(x5, x4)  # 32
+        x = self.up2(x, x3)  # 64
+        x = self.up3(x, x2)  # 128
+        x = self.up4(x, x1)  # 256
+        x = self.up5(x, x0)  # 512
+
+        x = self.outc(x)
+
+        return x, c
+
+
+    def _init_weight(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                torch.nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()

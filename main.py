@@ -69,7 +69,7 @@ elif params.optimizer == 'adam':
                                  weight_decay=params.weight_decay)
 
 scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optimizer,
-                                                                 T_0=5,
+                                                                 T_0=10,
                                                                  T_mult=1)
 
 # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer,
@@ -81,7 +81,7 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optim
 ########################################################################################################################
 
 # Inference
-if (not params.is_train) or params.submit:
+if (not params.is_train) or (params.submit):
 
     if not params.inference_epoch:
         history = pd.read_csv(save_dir + '/training_log.csv')
