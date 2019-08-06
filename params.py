@@ -23,6 +23,8 @@ parser.add_argument('--num_workers', '--nw', type=int, default=0)
 
 # Dataset
 parser.add_argument('--num_classes', '--nc', type=int, default=2)
+parser.add_argument('--num_channels', '--nch', type=int, default=1)
+
 parser.add_argument('--image_size', '--in', type=int, default=512)  # IMAGENET Pretrained
 parser.add_argument('--valset', '--val', type=int, default=1)
 parser.add_argument('--use', '--u', type=str, default='all')
@@ -59,6 +61,7 @@ parser.add_argument('--dice_weight', '--dw', type=float, default=0.)
 parser.add_argument('--ce_weight', '--cw', type=float, default=1.)
 parser.add_argument('--focal_weight', '--fw', type=float, default=0.)
 parser.add_argument('--class_weight', '--clw', type=float, default=0.01)
+parser.add_argument('--accumulation', '--accm', type=int, default=32)
 
 # parser.add_argument('--boundary_weight', '--bw', type=float, default=0.)
 
@@ -67,7 +70,7 @@ parser.add_argument('--class_weight', '--clw', type=float, default=0.01)
 # Training
 parser.add_argument('--is_train', '--train', type=str2bool, default=True)
 parser.add_argument('--resume_epoch', '--rep', type=int, default=0)
-parser.add_argument('--max_epoch', '--mep', type=int, default=100)
+parser.add_argument('--max_epoch', '--mep', type=int, default=40)
 parser.add_argument('--warmup_epoch', '--wep', type=int, default=4)
 
 parser.add_argument('--batch_size', '--bs', type=int, default=10)
@@ -93,7 +96,7 @@ parser.add_argument('--up', type=str, default='bi')
 parser.add_argument('--seed', '--s', type=str, default=None)  #
 parser.add_argument('--submit', '--sub', type=str2bool, default=False)  #
 parser.add_argument('--threshold', '--th', type=float, default=0.8)  #
-
+parser.add_argument('--follow_aux', '--fax', type=str2bool, default=False)  #
 
 
 
@@ -117,6 +120,9 @@ params = parser.parse_args()
 
 if params.seed is None:
     params.seed = datetime.now().strftime('%Y%m%d%H%M%S')[4:]
+
+if params.network == 'SMPUNet34':
+    params.num_channels = 3
 
 
 if not params.augmentation:

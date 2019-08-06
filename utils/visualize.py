@@ -9,35 +9,40 @@ import warnings
 def summary_fig(it, save_dir, img, seg, outputs, writer, type='train', draw_num=1, save=False, fps=None):
     warnings.filterwarnings("ignore")
 
-    fig_label_l = seg.cpu().numpy()[:draw_num, :, :,]  # [:, np.newaxis, :, :]
-    fig_out_l = torch.argmax(F.softmax(outputs, dim=1)[:draw_num, :, :, :], dim=1).cpu().numpy()  # [:, np.newaxis, : :, :]
+    try:
+        gray = img.cpu().numpy()[3:3+draw_num, 0, :, :]
+        fig_label_l = seg.cpu().numpy()[3:3+draw_num, :, :,]  # [:, np.newaxis, :, :]
+        fig_out_l = torch.argmax(F.softmax(outputs, dim=1)[3:3+draw_num, :, :, :], dim=1).cpu().numpy()  # [:, np.newaxis, : :, :]
+    except:
+        gray = img.cpu().numpy()[:draw_num, 0, :, :]
+        fig_label_l = seg.cpu().numpy()[:draw_num, :, :,]  # [:, np.newaxis, :, :]
+        fig_out_l = torch.argmax(F.softmax(outputs, dim=1)[:draw_num, :, :, :], dim=1).cpu().numpy()  # [:, np.newaxis, : :, :]
 
     fig = plt.figure(figsize=(8*3, 8))
     plt.axis('off')
 
-    for bi in range(draw_num):
+    for bi in range(0, draw_num):
 
-        gray = img.cpu().numpy()[bi, 0, :, :]
-
-        mask_label = fig_label_l[bi, :, :]
-        mask_pred = fig_out_l[bi, :, :]
+        bi_gray = gray[bi, :, :]
+        bi_mask_label = fig_label_l[bi, :, :]
+        bi_mask_pred = fig_out_l[bi, :, :]
 
         ax00 = fig.add_subplot(1, 3, 1)
         ax01 = fig.add_subplot(1, 3, 2)
         ax02 = fig.add_subplot(1, 3, 3)
 
         # 원본 gray
-        ax00.imshow(gray, cmap='gray')
+        ax00.imshow(bi_gray, cmap='gray')
 
 
         # gt seg: vessel(분홍) + mask(파랑)
-        ax01.imshow(gray, cmap='gray')
-        mask_masked_label = np.ma.masked_where(mask_label == 0, mask_label)
+        ax01.imshow(bi_gray, cmap='gray')
+        mask_masked_label = np.ma.masked_where(bi_mask_label == 0, bi_mask_label)
         ax01.imshow(mask_masked_label, cmap='winter', alpha=0.3)  # 파랑, 겹쳐지면 보라
 
         # pred seg: vessel(분홍) + mask(파랑)
-        ax02.imshow(gray, cmap='gray')
-        mask_masked_pred = np.ma.masked_where(mask_pred == 0, mask_pred)
+        ax02.imshow(bi_gray, cmap='gray')
+        mask_masked_pred = np.ma.masked_where(bi_mask_pred == 0, bi_mask_pred)
         ax02.imshow(mask_masked_pred, cmap='autumn', alpha=0.3)  # 파랑, 겹쳐지면 보라
 
         if not save:

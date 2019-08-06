@@ -16,7 +16,7 @@ from mask_functions import mask2rle
 
 
 
-def tester(model, val_loader, save_dir, device, writer, best_epoch, submit=False, th=0.9):
+def tester(model, val_loader, save_dir, device, writer, best_epoch, submit=False, follow_aux=False, th=0.9):
 
     print('\n\nInference\n')
 
@@ -35,12 +35,13 @@ def tester(model, val_loader, save_dir, device, writer, best_epoch, submit=False
 
                 val_outputs, val_lbl_outputs = model(val_img)
 
-                val_dice_info = tools.calc_dice_info(val_fp, val_lbl, val_lbl_outputs, val_seg, val_outputs, follow_aux=False, th=th)
+                val_dice_info = tools.calc_dice_info(val_fp, val_lbl, val_lbl_outputs, val_seg, val_outputs,
+                                                     follow_aux=follow_aux, th=th)
                 tot_val_info_df.extend(val_dice_info)
 
 
-            visualize.summary_fig(0, save_dir, val_img.detach(), val_seg.detach(), val_outputs.detach(), writer=writer,
-                                       type='inf', draw_num=len(val_fp), save=True, fps=val_fp)
+            # visualize.summary_fig(0, save_dir, val_img.detach(), val_seg.detach(), val_outputs.detach(), writer=writer,
+            #                            type='inf', draw_num=len(val_fp), save=True, fps=val_fp)
 
 
             # save fig
@@ -70,9 +71,12 @@ def tester(model, val_loader, save_dir, device, writer, best_epoch, submit=False
 
                 val_outputs, val_lbl_outputs = model(val_img)
 
+                test_outputs_softmax = torch.softmax(val_outputs, dim=1)[0, 1, :, :].detach().cpu().numpy()
+                test_outputs_mask = test_outputs_softmax > th
+                test_outputs = tools.post_process(test_outputs_softmax, test_outputs_mask)
 
-                test_outputs = (torch.softmax(val_outputs, dim=1)[0, 1, :, :] > th).detach().cpu().numpy()
-                test_outputs = cv2.resize(test_outputs, (1024, 1024), interpolation=cv2.INTER_CUBIC)
+                if not test_outputs.shape[0] == 1024:
+                    test_outputs = cv2.resize(test_outputs, (1024, 1024), interpolation=cv2.INTER_CUBIC)
 
 
 

@@ -11,9 +11,10 @@ sys.path.append('..')
 
 from utils import tools, visualize, losses
 
+from sklearn import metrics
 
 
-def validator(model, it, epoch, val_loader, save_dir, device, writer, past_record, th=0.9):
+def validator(model, it, epoch, val_loader, save_dir, device, writer, past_record, follow_aux=False, th=0.9):
 
 
 
@@ -36,7 +37,7 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
             val_outputs, val_lbl_outputs = model(val_img)
 
             val_dice_info = tools.calc_dice_info(val_fp, val_lbl, val_lbl_outputs, val_seg, val_outputs,
-                                                 follow_aux=False, th=th)
+                                                 follow_aux=follow_aux, th=th)
             tot_val_info_df.extend(val_dice_info)
 
 
@@ -54,8 +55,16 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
         print('avg val dice: {:.4f}'.format(avg_val_dice))
         avg_val_kaggle_dice = np.mean(tot_val_info_df['dice'])
         print('avg val kaggle dice: {:.4f}'.format(avg_val_kaggle_dice))
-        val_acc = np.sum(tot_val_info_df['pred_lbl'] == tot_val_info_df['lbl']) / len(tot_val_info_df)
-        print('avg val acc: {:.4f}'.format(val_acc))
+
+
+        val_lbl_fpr, val_lbl_tpr, val_lbl_threshold = metrics.roc_curve(list(tot_val_info_df['lbl']),
+                                                                        list(tot_val_info_df['pred_lbl']), pos_label=1)
+        val_lbl_auc = metrics.auc(val_lbl_fpr, val_lbl_tpr)
+        val_lbl_acc = np.sum((tot_val_info_df['pred_lbl']>th) == tot_val_info_df['lbl']) / len(tot_val_info_df)
+        print('avg val lbl AUC: {:.4f}'.format(val_lbl_auc))
+        # print('avg val lbl recall: ', (val_lbl_tpr))
+        # print('avg val lbl specificity: ', (1-val_lbl_fpr))
+        print('avg val lbl Acc: {:.4f}'.format(val_lbl_acc))
 
         # print('val time: {:.4f}'.format(time.time() - vt1))
 
@@ -72,7 +81,7 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
             that_dice = avg_val_dice
             that_k_dice = avg_val_kaggle_dice
             that_epoch = epoch + 1
-            that_acc = val_acc
+            that_acc = val_lbl_acc
 
         print('Best Metric {:.4f}, Dice {:.4f} KDice {:.4f}, Acc {:.4f} at epoch {}'.
               format(best_metric, that_dice, that_k_dice, that_acc, that_epoch))
@@ -93,4 +102,6 @@ def validator(model, it, epoch, val_loader, save_dir, device, writer, past_recor
 
         past_record = (best_metric, that_dice, that_k_dice, that_acc, that_epoch)
 
-        return past_record, avg_val_dice, val_acc
+        return past_record, avg_val_dice, val_lbl_acc
+
+

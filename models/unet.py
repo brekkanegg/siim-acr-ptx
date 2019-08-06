@@ -9,6 +9,8 @@ import torch.utils.model_zoo as model_zoo
 import math
 
 from models import resnet, efficientnet
+from models import segmentation_models_pytorch as smp
+
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -25,7 +27,7 @@ model_urls = {
 
 
 class double_conv(nn.Module):
-    '''(conv => BN => ELU) * 2'''
+    '''(conv => BN => ReLU) * 2'''
 
     def __init__(self, in_ch, out_ch1, out_ch2, stride, dilation=1, drop_ratio=0.0, in_norm=False):
         super(double_conv, self).__init__()
@@ -35,21 +37,21 @@ class double_conv(nn.Module):
             self.conv = nn.Sequential(
                 nn.Conv2d(in_ch, out_ch1, 3, stride, padding=dilation, dilation=dilation),
                 nn.InstanceNorm2d(out_ch1),
-                nn.ELU(inplace=True),
+                nn.ReLU(inplace=True),
                 nn.Dropout2d(p=drop_ratio),
                 nn.Conv2d(out_ch1, out_ch2, 3, stride=1, padding=dilation, dilation=dilation),
                 nn.InstanceNorm2d(out_ch2),
-                nn.ELU(inplace=True)
+                nn.ReLU(inplace=True)
             )
         else:
             self.conv = nn.Sequential(
                 nn.Conv2d(in_ch, out_ch1, 3, stride, padding=dilation, dilation=dilation),
                 nn.BatchNorm2d(out_ch1),
-                nn.ELU(inplace=True),
+                nn.ReLU(inplace=True),
                 nn.Dropout2d(p=drop_ratio),
                 nn.Conv2d(out_ch1, out_ch2, 3, stride=1, padding=dilation, dilation=dilation),
                 nn.BatchNorm2d(out_ch2),
-                nn.ELU(inplace=True)
+                nn.ReLU(inplace=True)
             )
 
     def forward(self, x):
@@ -58,24 +60,32 @@ class double_conv(nn.Module):
 
 
 class up(nn.Module):
-    def __init__(self, in_ch, out_ch, up_in_ch, up_out_ch, stride=2, drop_ratio=0.2, in_norm=False):
+    def __init__(self, up_in_ch, up_out_ch, in_ch, out_ch, stride=2, drop_ratio=0.2,
+                 concat=True, concat_channel=None):
         super(up, self).__init__()
 
         self.stride = stride
+        self.concat = concat
         self.transpose_conv = nn.ConvTranspose2d(in_channels=up_in_ch, out_channels=up_out_ch, kernel_size=3,
                                                  stride=self.stride, padding=1, output_padding=1)
 
-        self.conv = double_conv(in_ch, out_ch, out_ch, 1, drop_ratio=drop_ratio, in_norm=in_norm)
+        self.conv = double_conv(in_ch, out_ch, out_ch, 1, drop_ratio=drop_ratio)
+
+        if self.concat:
+            if concat_channel:
+                self.one_conv = nn.Conv2d(concat_channel, up_out_ch, kernel_size=1, stride=1)
+            else:
+                self.one_conv = nn.Conv2d(up_out_ch, up_out_ch, kernel_size=1, stride=1)
 
 
-    def copy_crop(self, x1, x2):
-        x2_cx, x2_cy = x2.shape[2] // 2, x2.shape[3] // 2
-        x1_px, x1_py = x1.shape[2] // 2, x1.shape[3] // 2
-
-        x2 = x2[:, :, x2_cx-x1_px:x2_cx+x1_px, x2_cy-x1_py:x2_cy+x1_py]
-        # not copy_crop on z-axis
-
-        return x2
+    # def copy_crop(self, x1, x2):
+    #     x2_cx, x2_cy = x2.shape[2] // 2, x2.shape[3] // 2
+    #     x1_px, x1_py = x1.shape[2] // 2, x1.shape[3] // 2
+    #
+    #     x2 = x2[:, :, x2_cx-x1_px:x2_cx+x1_px, x2_cy-x1_py:x2_cy+x1_py]
+    #     # not copy_crop on z-axis
+    #
+    #     return x2
 
 
     def forward(self, x1, x2):
@@ -83,41 +93,16 @@ class up(nn.Module):
         # x1 = F.interpolate(x1, scale_factor=self.stride, mode='bilinear', align_corners=True)
         # fixme - check
         x1 = self.transpose_conv(x1)
-        x2 = self.copy_crop(x1, x2)
 
-        x = torch.cat([x2, x1], dim=1)
+        if self.concat:
+            x2 = self.one_conv(x2)
+            # x2 = self.copy_crop(x1, x2)
+            x = torch.cat([x2, x1], dim=1)
+        else:
+            x = x1
+
         x = self.conv(x)
         return x
-
-
-
-# class VanilaUNet(nn.Module):
-#     def __init__(self, n_classes):
-#         super(VanilaUNet, self).__init__()
-#         self.inc = double_conv(1, 64, 64, stride=1)
-#         self.down1 = double_conv(64, 128, 128, stride=2)
-#         self.down2 = double_conv(128, 256, 256, stride=2)
-#         self.down3 = double_conv(256, 512, 512, stride=2)
-#         self.down4 = double_conv(512, 512, 512, stride=2)
-#         self.up1 = up(1024, 256, 256, stride=2)
-#         self.up2 = up(512, 128, 128, stride=2)
-#         self.up3 = up(256, 64, 64, stride=2)
-#         self.up4 = up(128, 64, 64, stride=2)
-#         self.outc = nn.Conv2d(64, n_classes, 3, stride=1, padding=1)
-#
-#     def forward(self, x):
-#         x1 = self.inc(x)
-#         x2 = self.down1(x1)
-#         x3 = self.down2(x2)
-#         x4 = self.down3(x3)
-#         x5 = self.down4(x4)
-#         x = self.up1(x5, x4)
-#         x = self.up2(x, x3)
-#         x = self.up3(x, x2)
-#         x = self.up4(x, x1)
-#         x = self.outc(x)
-#         return x
-
 
 
 
@@ -141,11 +126,11 @@ class UNet(nn.Module): # 2d U-Net + dilation + spatial dropout
         self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
                                         nn.Conv2d(512, 256, 1, stride=1),
                                         nn.BatchNorm2d(256),
-                                        nn.ELU(inplace=True),
+                                        nn.ReLU(inplace=True),
                                         nn.Dropout2d(p=0.1),
                                         nn.Conv2d(256, 64, 1, stride=1),
                                         nn.BatchNorm2d(64),
-                                        nn.ELU(inplace=True),
+                                        nn.ReLU(inplace=True),
                                         nn.Dropout2d(p=0.1),
                                         nn.Conv2d(64, 2, 1, stride=1),
                                         )
@@ -206,38 +191,21 @@ class UNetRes50(nn.Module):
 
         self.resnetencoder = resnet.ResNetEncoder(resnet.Bottleneck, [3 ,4, 6, 3], 1)
 
-
-        # self.up1 = up(3072, 512, 512, stride=2) # up(3072, 512, 512, stride=2)
-        # self.up2 = up(1024, 256, 256, stride=2)
-        # self.up3 = up(512, 64, 64, stride=2)
-        # self.up4 = up(128, 64, 64, stride=2)
-        # self.up5 = up(65, 32, 32, stride=2)
-        # self.outc = nn.Conv2d(32, n_classes, 3, stride=1, padding=1)
-
         self.up1 = up(2048, 1024, 2048, 1024, stride=2) # up(3072, 512, 512, stride=2)
         self.up2 = up(1024, 512, 1024, 512, stride=2)
         self.up3 = up(512, 256, 512, 256, stride=2)
-        self.up4 = up(128, 64, 256, 64, stride=2)
-        self.up5 = up(33, 16, 64, 32, stride=2)
+        self.up4 = up(256, 64, 128, 64, stride=2)
+        self.up5 = up(64, 32, 64, 16, stride=2, concat_channel=1)
         self.outc = nn.Conv2d(16, n_classes, 3, stride=1, padding=1)
-
-        # self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
-        #                                 nn.Conv2d(2048, 64, 1, stride=1),
-        #                                 nn.BatchNorm2d(64),
-        #                                 nn.ELU(inplace=True),
-        #                                 nn.Dropout2d(p=0.2),
-        #                                 nn.Conv2d(64, 2, 1, stride=1),
-        #                                 )
-
 
         self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
                                         nn.Conv2d(2048, 256, 1, stride=1),
                                         nn.BatchNorm2d(256),
-                                        nn.ELU(inplace=True),
+                                        nn.ReLU(inplace=True),
                                         nn.Dropout2d(p=0.1),
                                         nn.Conv2d(256, 64, 1, stride=1),
                                         nn.BatchNorm2d(64),
-                                        nn.ELU(inplace=True),
+                                        nn.ReLU(inplace=True),
                                         nn.Dropout2d(p=0.1),
                                         nn.Conv2d(64, 2, 1, stride=1),
                                         )
@@ -290,6 +258,76 @@ class UNetRes50(nn.Module):
 
 
 
+class UNetRes50_noC(nn.Module):
+    def __init__(self, n_classes, pretrained=True):
+        super(UNetRes50_noC, self).__init__()
+
+        self.resnetencoder = resnet.ResNetEncoder(resnet.Bottleneck, [3 ,4, 6, 3], 1)
+
+        self.up1 = up(2048, 1024, 2048, 1024, stride=2)
+        self.up2 = up(1024, 512, 1024, 512, stride=2)
+        self.up3 = up(512, 256, 512, 256, stride=2)
+        self.up4 = up(256, 64, 64, 64, stride=2, concat=False)
+        self.up5 = up(64, 32, 32, 16, stride=2, concat=False)
+        self.outc = nn.Conv2d(16, n_classes, 3, stride=1, padding=1)
+
+        self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
+                                        nn.Conv2d(2048, 256, 1, stride=1),
+                                        nn.BatchNorm2d(256),
+                                        nn.ReLU(inplace=True),
+                                        nn.Dropout2d(p=0.1),
+                                        nn.Conv2d(256, 64, 1, stride=1),
+                                        nn.BatchNorm2d(64),
+                                        nn.ReLU(inplace=True),
+                                        nn.Dropout2d(p=0.1),
+                                        nn.Conv2d(64, 2, 1, stride=1),
+                                        )
+
+        self._init_weight()
+
+
+        # pretrained=True should be after than self._init_weight()
+        if pretrained:
+            model_dict = self.resnetencoder.state_dict()
+            pretrained_dict = model_zoo.load_url(model_urls['resnet50'])
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+
+            in_conv_weight =  pretrained_dict['conv1.weight']
+            pretrained_dict['conv1.weight'] = torch.cat((torch.mean(in_conv_weight, dim=1).unsqueeze(1), )*1, 1)
+
+            # 2. overwrite entries in the existing state dict
+            model_dict.update(pretrained_dict)
+            # 3. load the new state dict
+            self.resnetencoder.load_state_dict(model_dict)
+
+
+    def forward(self, x):
+        x0 = x
+        x1, x2, x3, x4, x5 = self.resnetencoder(x)
+        c = self.classifier(x5)
+        c = torch.squeeze(torch.squeeze(c, -1), -1)
+
+        x = self.up1(x5, x4)  # 3072 -> 512
+        x = self.up2(x, x3)  # 1024 -> 256
+        x = self.up3(x, x2)  # 512 -> 64
+        x = self.up4(x, x1)  # 128 -> 64
+        x = self.up5(x, x0)
+
+        x = self.outc(x)
+
+        return x, c
+
+
+    def _init_weight(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                torch.nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+
+
 
 class EfficientB4UNet(nn.Module):
     def __init__(self, n_classes, pretrained=True):
@@ -306,11 +344,11 @@ class EfficientB4UNet(nn.Module):
         self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
                                         nn.Conv2d(1792, 256, 1, stride=1),
                                         nn.BatchNorm2d(256),
-                                        nn.ELU(inplace=True),
+                                        nn.ReLU(inplace=True),
                                         nn.Dropout2d(p=0.1),
                                         nn.Conv2d(256, 64, 1, stride=1),
                                         nn.BatchNorm2d(64),
-                                        nn.ELU(inplace=True),
+                                        nn.ReLU(inplace=True),
                                         nn.Dropout2d(p=0.1),
                                         nn.Conv2d(64, 2, 1, stride=1),
                                         )
@@ -339,6 +377,49 @@ class EfficientB4UNet(nn.Module):
         x = self.up5(x, x0)  # 512
 
         x = self.outc(x)
+
+        return x, c
+
+
+    def _init_weight(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                torch.nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+
+
+
+
+
+class SMPUNet34(nn.Module):
+    def __init__(self, n_classes):
+        super(SMPUNet34, self).__init__()
+
+        self.classifier = nn.Sequential(nn.AdaptiveAvgPool2d(1),
+                                        nn.Conv2d(512, 256, 1, stride=1),
+                                        nn.BatchNorm2d(256),
+                                        nn.ReLU(inplace=True),
+                                        nn.Dropout2d(p=0.1),
+                                        nn.Conv2d(256, 64, 1, stride=1),
+                                        nn.BatchNorm2d(64),
+                                        nn.ReLU(inplace=True),
+                                        nn.Dropout2d(p=0.1),
+                                        nn.Conv2d(64, 2, 1, stride=1),
+                                        )
+
+        self._init_weight()
+
+        self.model = smp.Unet('resnet34', classes=n_classes, activation=None, encoder_weights='imagenet')
+
+    def forward(self, x):
+        enc = self.model.encoder(x)
+        x = self.model.decoder(enc)
+
+        c = self.classifier(enc[0])
+        c = torch.squeeze(torch.squeeze(c, -1), -1)
 
         return x, c
 

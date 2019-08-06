@@ -68,13 +68,13 @@ elif params.optimizer == 'adam':
                                  betas=(params.beta1, params.beta2),
                                  weight_decay=params.weight_decay)
 
-scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optimizer,
-                                                                 T_0=10,
-                                                                 T_mult=1)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optimizer,
+#                                                                  T_0=10,
+#                                                                  T_mult=1)
 
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer,
-#                                                        T_max=50,
-#                                                        eta_min=0)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer,
+                                                       T_max=100,
+                                                       eta_min=1e-4)
 
 
 ########################################################################################################################
@@ -100,7 +100,8 @@ if (not params.is_train) or (params.submit):
     state_dict = torch.load(best_model_dir)
     model.load_state_dict(state_dict)
 
-    tester.tester(model, val_loader, save_dir, device, writer, best_epoch, submit=params.submit, th=params.threshold)
+    tester.tester(model, val_loader, save_dir, device, writer, best_epoch, submit=params.submit,
+                  follow_aux=params.follow_aux, th=params.threshold)
 
 
 
@@ -129,5 +130,5 @@ else:
 
 
     trainer.trainer(model, optimizer, scheduler, train_loader, val_loader, params, save_dir, device, writer,
-                    use=params.use, it=it, th=params.threshold)
+                    use=params.use, it=it, follow_aux=params.follow_aux, th=params.threshold, accumulation=params.accumulation)
 

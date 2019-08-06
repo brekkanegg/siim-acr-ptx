@@ -34,11 +34,12 @@ def filter_none_collate(batch):
 
 class my_dataset(Dataset):
     def __init__(self, valset=0, num_classes=2, image_size=1024, transform=None,
-                 debug_mode=False, mode='train', use='all'):
+                 debug_mode=False, mode='train', use='all', num_channels=1):
 
 
         self.valset = valset
         self.num_classes = num_classes
+        self.num_channels = num_channels
         self.image_size = image_size
 
         self.mode = mode
@@ -136,6 +137,9 @@ class my_dataset(Dataset):
         # gray = (gray - gray.mean()) / max(0.1, gray.std())
         gray = (gray - torch.mean(gray)) / torch.max(torch.tensor(0.1), torch.std(gray))
 
+        if self.num_channels > 1:
+            gray = torch.cat(([gray, ]*3), dim=2)
+
 
         return gfp, gray, mask, label
 
@@ -160,7 +164,7 @@ def get_dataloader(params):
                                             translate=(params.translate, 0.4, 0.04),
                                             contrast=(params.contrast, 0.4, 0.1),
                                             gamma_contrast=(params.gamma_contrast, 0.4, 0.1),
-                                            gaussian_blur=(params.gaussian_blur, 0.4, 2),
+                                            gaussian_blur=(params.gaussian_blur, 0.4, 1.2),
                                             )
     transform = aug.augment
 
@@ -173,6 +177,7 @@ def get_dataloader(params):
                                                             debug_mode=params.debug_mode,
                                                             mode='train',
                                                             use='normal',
+                                                            num_channels=params.num_channels,
 
                                                             ),
                                          batch_size=params.batch_size // 2,
@@ -187,7 +192,7 @@ def get_dataloader(params):
                                                               debug_mode=params.debug_mode,
                                                               mode='train',
                                                               use='abnormal',
-
+                                                              num_channels=params.num_channels
                                                               ),
                                            batch_size=params.batch_size // 2,
                                            shuffle=True,
@@ -203,7 +208,8 @@ def get_dataloader(params):
                                                      transform=transform,
                                                      debug_mode=params.debug_mode,
                                                      mode='train',
-                                                     use=params.use
+                                                     use=params.use,
+                                                     num_channels=params.num_channels
                                                      ),
                                   batch_size=params.batch_size,
                                   shuffle=True,
@@ -218,7 +224,8 @@ def get_dataloader(params):
                                                    transform=None,
                                                    debug_mode=False,
                                                    mode='test',
-                                                   use='all'
+                                                   use='all',
+                                                   num_channels=params.num_channels
                                                    ),
                                 batch_size=1,
                                 shuffle=False,
@@ -232,7 +239,8 @@ def get_dataloader(params):
                                                    transform=None,
                                                    debug_mode=params.debug_mode,
                                                    mode='val',
-                                                   use='all'
+                                                   use='all',
+                                                   num_channels=params.num_channels
                                                    ),
                                 batch_size=params.batch_size,
                                 shuffle=False,
