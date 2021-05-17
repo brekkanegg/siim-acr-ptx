@@ -1,2 +1,2 @@
 # SIIM-ACR-Pmtx
-[kaggle] SIIM ACR Pneumothorax Segmentation
+kaggle siim acr ptx detection
